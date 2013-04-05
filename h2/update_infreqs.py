@@ -18,12 +18,17 @@ class Updater(object):
     def find_infreq(self, wc_file):
         for line in open(wc_file):
             tags = line.strip().split();
-            if (int(tags[0]) < 5):
-                self.infreq_words[unicode(tags[2] + " " + tags[3])] = 1
+            count = int(tags[0])
+            word = unicode(tags[3])
+            if (word in self.infreq_words):
+                self.infreq_words[word] = self.infreq_words[word] + count
+            else:
+                self.infreq_words[word] = count
+        self.infreq_words = {item:1 for item in self.infreq_words if self.infreq_words[item] < 5}
 
     def modify_line(self, line):
         if (len(line) == 2):
-            if (" ".join(line) in self.infreq_words):
+            if (line[1] in self.infreq_words):
                 return [line[0], self.rare_word]
             else:
                 return line
@@ -44,7 +49,7 @@ class Updater(object):
 start = time.time()
 wc_file = 'cfg.unary.counts'
 train_file = 'parse_train.dat'
-new_train_file = 'parse_train_new.dat'
+new_train_file = 'parse_train_new_1.dat'
 updater = Updater()
 updater.find_infreq(wc_file)
 updater.write_output(train_file, new_train_file)
