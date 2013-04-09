@@ -63,49 +63,72 @@ class PcfgParser(object):
     def max_pi(self, pi, i, j, X):
         max_YZ = "NONE"
         for YZ in self.binrules[X]:
-            q = trans_rule_prob(X, YZ)
+            q = self.trans_rule_prob(X, YZ)
             YZ = YZ.split()
             Y = YZ[0]
             Z = YZ[1]
             val = float(0)
-            for s in range(i, j)
+            if (max_YZ == "NONE"):
+                max_YZ = YZ
+            for s in range(i, j):
                 Y_key = str(i) + " " + str(s) + " " + Y
                 Z_key = str(s+1) + " " + str(j) + " " + Z
-                val_now = q * pi[Y_key] * float(pi[Z_key])
+                if Y_key not in pi:
+                    pi[Y_key] = 0.0
+                if Z_key not in pi:
+                    pi[Z_key] = 0.0
+                try:
+                    val_now = q * pi[Y_key] * float(pi[Z_key])
+                except TypeError as e:
+                    print e
+                    print pi[Z_key]
+                    print Z_key
+                    raise
                 if (val < val_now):
                     val = val_now
                     max_YZ = YZ
         if max_YZ == "NONE" :
-            print "error"
+            print "Error"
             print i, j, X
             sys.exit(1)
-        return val
+
+        if isinstance(val, str):
+            print "Error:", val, "is a string instead of float"
+        return val, max_YZ
 
     def tree_prob(self):
         sent_cnt = 0
         for words in parser.sentence_itr(self.get_file(self.test_file)):
+            print words
             pi = {}
+            bp = {}
             sent_cnt += 1
             n = len(words)
             if (sent_cnt >= 2):
                 break
             for i in range(1, n+1):
                 stri = str(i)
-                for X in self.nonter:
+                word = words[i-1]
+                if word not in self.unaryrules:
+                    word = "_RARE_"
+                for X in self.unaryrules[word]:
                     key = stri + " " + stri + " " + X
-                    pi[key] = self.trans_word_prob(X, words[i-1])
-            for l in range(1, n)
-                for i in range(1, n-l+1)
+                    pi[key] = self.trans_word_prob(X, word)
+            for l in range(1, n):
+                for i in range(1, n-l+1):
                     j = i + l
-                    for X in self.nonter:
+                    for X in self.binrules:
                         key = str(i) + " " + str(j) + " " + X
-                        pi[key] = self.max_pi(pi, i, j, X)
+                        pi_bp = self.max_pi(pi, i, j, X)
+                        pi[key] = pi_bp[0]
+                        bp[key] = pi_bp[1]
+
 
 
 if __name__ == "__main__":
     start = time.time()
     counts_file= 'parse_train.counts.out'
-    test_file = 'parse_dev.dat'
+    test_file = 'parse_dev_1.dat'
     outfile = 'parse_out.dat'
     parser = PcfgParser(counts_file, test_file, outfile)
     parser.parse_counts()
@@ -113,8 +136,4 @@ if __name__ == "__main__":
     print len(parser.unaryrules)
     print len(parser.binrules)
     pi = parser.tree_prob()
-    for key in pi:
-        if (pi[key] > 0):
-            print key, pi[key]
-
     print 'Elapsed time: ', time.time() - start, " seconds"
