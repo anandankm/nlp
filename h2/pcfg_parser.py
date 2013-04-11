@@ -16,6 +16,9 @@ class PcfgParser(object):
         self.nonter = {}
         self.unaryrules = {}
         self.binrules = {}
+        self.rev_binrules = {}
+        self.wordprobs = {}
+        self.ruleprobs = {}
 
     def get_file(self, filename, mode='r'):
         try:
@@ -35,17 +38,26 @@ class PcfgParser(object):
                     self.unaryrules[splits[3]] = {}
                 self.unaryrules[splits[3]][splits[2]] = cnt
             if (splits[1] == 'BINARYRULE'):
-                if splits[2] not in self.binrules:
-                    self.binrules[splits[2]] = {}
-                self.binrules[splits[2]][splits[3] + " " + splits[4]] = cnt
+                X = splits[2]
+                YZ = splits[3] + " " + splits[4]
+                if YZ not in self.rev_binrules:
+                    self.rev_binrules[YZ] = {}
+                self.rev_binrules[YZ][X] = cnt
+                if X not in self.binrules:
+                    self.binrules[X] = {}
+                self.binrules[X][YZ] = cnt
 
     def trans_word_prob(self, X, wi):
         if (wi not in self.unaryrules):
             wi = "_RARE_"
-        if (wi in self.unaryrules):
-            if (X in self.unaryrules[wi]):
-                return float(self.unaryrules[wi][X])/self.nonter[X]
-        return float(0.0)
+        key = X + " " + wi
+        if key in self.wordprobs:
+            return self.wordprobs[key]
+        wordprob = float(0.0)
+        if (X in self.unaryrules[wi]):
+            wordprob = float(self.unaryrules[wi][X])/self.nonter[X]
+        self.wordprobs[key] = wordprob
+        return wordprob
 
     def trans_rule_prob(self, X, YZ):
         if (X in self.binrules):
@@ -60,7 +72,7 @@ class PcfgParser(object):
             if len(words) > 0:
                 yield words
 
-    def max_pi(self, pi, i, j, X):
+    def max_pi(self, bp, pi, i, j, X):
         max_YZ = "NONE"
         for YZ in self.binrules[X]:
             q = self.trans_rule_prob(X, YZ)
@@ -96,6 +108,36 @@ class PcfgParser(object):
             print "Error:", val, "is a string instead of float"
         return val, max_YZ
 
+    def calc_pi_bp(self, pi, bp,i, j):
+        print "[i j]", [i, j]
+        for s in range(i, j):
+            pi_key = str(i) + " " + str(j)
+            if pi_key not in pi:
+                pi[pi_key] = {}
+                bp[pi_key] = {}
+            Y_key = str(i) + " " + str(s)
+            Z_key = str(s+1) + " " + str(j)
+            for Y in bp[Y_key]:
+                for Z in bp[Z_key]:
+                    if Y + " " + Z not in self.rev_binrules:
+                        continue
+                    else:
+                        YZ = Y + " " + Z
+                        for X in self.rev_binrules[YZ]:
+                            q = self.trans_rule_prob(X, YZ)
+                            pi_v = q * float(pi[Y_key][Y]) * float(pi[Z_key][Z])
+                            if X not in pi[pi_key]:
+                                pi[pi_key][X] = pi_v
+                                bp[pi_key][X] = [X, YZ, s]
+                            else:
+                                if pi_v > pi[pi_key][X]:
+                                    pi[pi_key][X] = pi_v
+                                    bp[pi_key][X] = [X, YZ, s]
+
+            if len(pi[pi_key]) <= 0:
+                print pi[pi_key]
+                print bp[pi_key]
+
     def tree_prob(self):
         sent_cnt = 0
         for words in parser.sentence_itr(self.get_file(self.test_file)):
@@ -112,14 +154,53 @@ class PcfgParser(object):
                 if word not in self.unaryrules:
                     word = "_RARE_"
                 for X in self.unaryrules[word]:
-                    key = stri + " " + stri + " " + X
-                    pi[key] = self.trans_word_prob(X, word)
+                    key = stri + " " + stri;
+                    if key not in pi:
+                        pi[key] = {}
+                        bp[key] = {}
+                    pi[key][X] = self.trans_word_prob(X, word)
+                    bp[key][X] = [X, word, i]
+            cnt = 0
+            for l in range(1, n):
+                for i in range(1, n-l+1):
+                    j = i + l
+                    self.calc_pi_bp(pi, bp, i, j)
+                    cnt += 1
+                    if (cnt >= 2):
+                        break
+                break
+
+    def tree_prob1(self):
+        sent_cnt = 0
+        for words in parser.sentence_itr(self.get_file(self.test_file)):
+            print words
+            pi = {}
+            bp = {}
+            sent_cnt += 1
+            n = len(words)
+            if (sent_cnt >= 2):
+                break
+            for i in range(1, n+1):
+                stri = str(i)
+                word = words[i-1]
+                if word not in self.unaryrules:
+                    word = "_RARE_"
+                for X in self.unaryrules[word]:
+                    key = stri + " " + stri;
+                    if key not in pi:
+                        pi[key] = {}
+                        bp[key] = {}
+                    pi[key][X] = self.trans_word_prob(X, word)
+                    bp[key][X] = [X, word, i]
+            for key in pi:
+                print key, "; pi =", pi[key], "; bp = ", bp[key]
+            continue
             for l in range(1, n):
                 for i in range(1, n-l+1):
                     j = i + l
                     for X in self.binrules:
                         key = str(i) + " " + str(j) + " " + X
-                        pi_bp = self.max_pi(pi, i, j, X)
+                        pi_bp = self.max_pi(bp, pi, i, j, X)
                         pi[key] = pi_bp[0]
                         bp[key] = pi_bp[1]
 
