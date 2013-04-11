@@ -24,7 +24,7 @@ class HmmTagger(object):
         self.ngrams_file = ngrams_file
         self.test_filename = test_filename
         self.outfile = outfile
-        self.tag_counts = {} 
+        self.tag_counts = {}
         self.ngram_counts = defaultdict(int)
         self.unseen_words = 0
         self.probs_cnt = 0
@@ -97,7 +97,7 @@ class HmmTagger(object):
             return '_NUM_'
         elif self.all_caps_regex.search(word):
             return '_ALL_CAPS_'
-        elif self.caps_at_end.search(word): 
+        elif self.caps_at_end.search(word):
             return '_CAPS_AT_END_'
         else:
             return '_RARE_'
@@ -112,7 +112,7 @@ class HmmTagger(object):
             x = sentence[i]
             k = i + 1
             if x not in self.tag_counts:
-                x = self.find_rare_class(x) 
+                x = self.find_rare_class(x)
             if x == "_ALL_CAPS_":
                 self.all_cnt += 1
             max_tag = "NONE"
@@ -125,7 +125,7 @@ class HmmTagger(object):
             for u in u_tags:
                 for v in tags:
                     emit_prob = self.emission_prob(x, v)
-                    pi = Decimal(0.0) 
+                    pi = Decimal(0.0)
                     for w in w_tags:
                         trans_prob = self.transition_prob(w + " " + u + " " + v)
                         index = str(k - 1) + " " + w + " " + u
@@ -138,7 +138,7 @@ class HmmTagger(object):
                     bp[index] = max_tag
                     pi_sent[index] = pi
         sent_len = len(sentence)
-        pi = Decimal(0.0) 
+        pi = Decimal(0.0)
         yn1 = "NONE"
         yn = "NONE"
         for u in avail:
