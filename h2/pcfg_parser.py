@@ -5,6 +5,7 @@ __date__ ="$Apr 4, 2013"
 
 import sys
 import time
+import json
 
 class PcfgParser(object):
 
@@ -12,7 +13,7 @@ class PcfgParser(object):
         self.rare_word = unicode("_RARE_")
         self.counts_file = counts_file
         self.test_file = test_file
-        self.outfile = outfile
+        self.outfile = self.get_file(outfile, "w")
         self.nonter = {}
         self.unaryrules = {}
         self.binrules = {}
@@ -25,6 +26,7 @@ class PcfgParser(object):
             file_handle = open(filename, mode)
         except IOError as e:
             sys.stderr.write("ERROR: Cannot read input test file: %s.\nError msg: %s.\n" % (filename, e.strerror))
+            raise
         return file_handle
 
     def parse_counts(self):
@@ -108,46 +110,64 @@ class PcfgParser(object):
             print "Error:", val, "is a string instead of float"
         return val, max_YZ
 
-    def calc_pi_bp(self, pi, bp,i, j):
-        print "[i j]", [i, j]
+    def calc_pi_bp(self, i, j):
+        pi_key = str(i) + " " + str(j)
         for s in range(i, j):
-            pi_key = str(i) + " " + str(j)
-            if pi_key not in pi:
-                pi[pi_key] = {}
-                bp[pi_key] = {}
+            if pi_key not in self.pi:
+                self.pi[pi_key] = {}
+                self.bp[pi_key] = {}
             Y_key = str(i) + " " + str(s)
             Z_key = str(s+1) + " " + str(j)
-            for Y in bp[Y_key]:
-                for Z in bp[Z_key]:
+            if Y_key not in self.bp or Z_key not in self.bp:
+                continue
+            for Y in self.bp[Y_key]:
+                for Z in self.bp[Z_key]:
                     if Y + " " + Z not in self.rev_binrules:
                         continue
                     else:
                         YZ = Y + " " + Z
                         for X in self.rev_binrules[YZ]:
                             q = self.trans_rule_prob(X, YZ)
-                            pi_v = q * float(pi[Y_key][Y]) * float(pi[Z_key][Z])
-                            if X not in pi[pi_key]:
-                                pi[pi_key][X] = pi_v
-                                bp[pi_key][X] = [X, YZ, s]
+                            pi_v = q * float(self.pi[Y_key][Y]) * float(self.pi[Z_key][Z])
+                            if X not in self.pi[pi_key]:
+                                self.pi[pi_key][X] = pi_v
+                                self.bp[pi_key][X] = [X, YZ, s]
                             else:
-                                if pi_v > pi[pi_key][X]:
-                                    pi[pi_key][X] = pi_v
-                                    bp[pi_key][X] = [X, YZ, s]
+                                if pi_v > self.pi[pi_key][X]:
+                                    self.pi[pi_key][X] = pi_v
+                                    self.bp[pi_key][X] = [X, YZ, s]
+            if len(self.pi[pi_key]) == 0:
+                del self.pi[pi_key]
+                del self.bp[pi_key]
 
-            if len(pi[pi_key]) <= 0:
-                print pi[pi_key]
-                print bp[pi_key]
+    def get_max_X(self, sent_len):
+        max_pi_v = 0.0
+        max_X = "NONE"
+        pi_key = "1 " + str(sent_len)
+        error = 0
+        if pi_key in self.pi:
+            for key in self.pi[pi_key]:
+                if self.pi[pi_key][key] > max_pi_v:
+                    max_pi_v = self.pi[pi_key][key]
+                    max_X = key
+            if max_X == "NONE":
+                error = 1
+        else:
+            error = 1
+        if error == 1:
+            print "ERROR: pi[1 sent_length X] value not found for sentence: %s" %self.sentence
+            sys.exit(1)
+        return max_X
 
-    def tree_prob(self):
+
+    def efficient_CKY_algo(self):
         sent_cnt = 0
         for words in parser.sentence_itr(self.get_file(self.test_file)):
-            print words
-            pi = {}
-            bp = {}
+            self.sentence = words
+            self.pi = {}
+            self.bp = {}
             sent_cnt += 1
             n = len(words)
-            if (sent_cnt >= 2):
-                break
             for i in range(1, n+1):
                 stri = str(i)
                 word = words[i-1]
@@ -155,22 +175,40 @@ class PcfgParser(object):
                     word = "_RARE_"
                 for X in self.unaryrules[word]:
                     key = stri + " " + stri;
-                    if key not in pi:
-                        pi[key] = {}
-                        bp[key] = {}
-                    pi[key][X] = self.trans_word_prob(X, word)
-                    bp[key][X] = [X, word, i]
-            cnt = 0
+                    if key not in self.pi:
+                        self.pi[key] = {}
+                        self.bp[key] = {}
+                    self.pi[key][X] = self.trans_word_prob(X, word)
+                    self.bp[key][X] = [X, word, i]
             for l in range(1, n):
                 for i in range(1, n-l+1):
                     j = i + l
-                    self.calc_pi_bp(pi, bp, i, j)
-                    cnt += 1
-                    if (cnt >= 2):
-                        break
-                break
+                    self.calc_pi_bp(i, j)
+            max_X = "NONE"
+            if self.sentence[n-1] == "?":
+                max_X = "SBARQ"
+            else:
+                max_X = self.get_max_X(n)
+            yield json.dumps(self.backtrack(1, n, max_X))
 
-    def tree_prob1(self):
+    def backtrack(self, i, j, max_X):
+        result = []
+        result.append(max_X)
+        num_key = str(i) + " " + str(j)
+        s = self.bp[num_key][max_X][2]
+        YZ = self.bp[num_key][max_X][1].split()
+        if len(YZ) == 2:
+            result.append(self.backtrack(i, s, YZ[0]))
+            result.append(self.backtrack(s+1, j, YZ[1]))
+        if len(YZ) == 1:
+            result.append(self.sentence[i-1])
+        return result
+
+    def write_output(self):
+        for line in self.efficient_CKY_algo():
+            self.outfile.write(line + "\n")
+
+    def CKY_algo(self):
         sent_cnt = 0
         for words in parser.sentence_itr(self.get_file(self.test_file)):
             print words
@@ -209,12 +247,12 @@ class PcfgParser(object):
 if __name__ == "__main__":
     start = time.time()
     counts_file= 'parse_train.counts.out'
-    test_file = 'parse_dev_1.dat'
-    outfile = 'parse_out.dat'
+    test_file = 'parse_test.dat'
+    outfile = 'parse_test.p2.out'
     parser = PcfgParser(counts_file, test_file, outfile)
     parser.parse_counts()
     print len(parser.nonter)
     print len(parser.unaryrules)
     print len(parser.binrules)
-    pi = parser.tree_prob()
+    parser.write_output()
     print 'Elapsed time: ', time.time() - start, " seconds"
