@@ -47,9 +47,9 @@ class Updater(object):
             ntf_handle.write(line + "\n")
 
 start = time.time()
-wc_file = 'cfg.unary.counts'
-train_file = 'parse_train.dat'
-new_train_file = 'parse_train_new_1.dat'
+wc_file = 'markov_unary_counts'
+train_file = 'parse_train_vert.dat'
+new_train_file = 'parse_train_vert_new.dat'
 updater = Updater()
 updater.find_infreq(wc_file)
 updater.write_output(train_file, new_train_file)

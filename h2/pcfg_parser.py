@@ -246,9 +246,12 @@ class PcfgParser(object):
 
 if __name__ == "__main__":
     start = time.time()
-    counts_file= 'parse_train.counts.out'
+    #counts_file= 'parse_train.counts.out'
+    #test_file = 'parse_test.dat'
+    #outfile = 'parse_test.p2.out'
+    counts_file= 'markov_new_counts'
     test_file = 'parse_test.dat'
-    outfile = 'parse_test.p2.out'
+    outfile = 'parse_test.p3.out'
     parser = PcfgParser(counts_file, test_file, outfile)
     parser.parse_counts()
     print len(parser.nonter)
