@@ -53,5 +53,6 @@ if __name__ == "__main__":
     model = IBM_model1("corpus.en", "corpus.es")
     model.set_foreign_words()
     print len(model.en_lines), len(model.es_lines), len(model.es_uniq_words), \
-            len(model.english_words)
+            len(model.english_words['resumption']), len(model.es_uniq), \
+    file_utils.write_output(model.english_words['resumption'], "resumption_foreign_py")
     print 'Elapsed time: ', time.time() - start, " seconds"
