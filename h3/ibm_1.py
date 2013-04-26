@@ -27,9 +27,11 @@ class IBM_model1(object):
     def get_lines(self):
         self.en_lines = list(self.en_corpus_file)
         self.es_lines = list(self.es_corpus_file)
+        for es_line in self.es_lines:
+            self.es_uniq_words.append(set(es_line.strip().split()))
 
 if __name__ == "__main__":
     start = time.time()
     model = IBM_model1("corpus.en", "corpus.es")
-    print len(model.en_lines), len(model.es_lines)
+    print len(model.en_lines), len(model.es_lines), len(model.es_uniq_words)
     print 'Elapsed time: ', time.time() - start, " seconds"
