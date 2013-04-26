@@ -61,6 +61,7 @@ class IBM_model1(object):
     def EM_algo(self):
         delta = {}
         k = 1
+        counts = {}
         while k <= len(self.en_lines):
             en_words_l = self.en_lines[k-1].strip().split()
             es_words_l = self.es_lines[k-1].strip().split()
@@ -83,7 +84,12 @@ class IBM_model1(object):
                     # delta[k, i, j] = {tfe[fi/ej]} / {sum over all english words
                     #                                  in the sentence including null
                     #                                  against the foreign word fi(tfe_sum[fi/e])}
-                    delta[index] = self.tfe[es_word + " " + en_word]/tfe_sum[es_word]
+                    fe_index = es_word + " " + en_word
+                    delta[index] = self.tfe[fe_index]/float(tfe_sum[es_word])
+                    if fe_index in counts:
+                        counts[fe_index] += delta[index]
+                    if en_word in counts:
+                        counts[en_word] += delta[index]
 
 
 if __name__ == "__main__":
