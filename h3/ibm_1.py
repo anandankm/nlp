@@ -11,6 +11,7 @@ class IBM_model1(object):
         self.en_corpus_filename = en_corpus
         self.es_corpus_filename = es_corpus
         self.english_words = {}
+        self.tfe = {}
         self.set_en_filehandle()
         self.set_es_filehandle()
         self.es_uniq_words = []
@@ -48,7 +49,6 @@ class IBM_model1(object):
             k += 1
 
     def initialize_tfe(self):
-        zero_foreign = []
         for en_word in self.english_words:
             len_en_word = len(self.english_words[en_word])
             if len_en_word == 0:
@@ -56,6 +56,34 @@ class IBM_model1(object):
                 len_en_word = self.es_uniq_len
             for es_word in self.english_words[en_word]:
                 self.tfe[es_word + " " + en_word] = 1/float(len_en_word)
+
+    # http://www.cs.columbia.edu/~mcollins/ibm12.pdf
+    def EM_algo(self):
+        delta = {}
+        k = 1
+        while k <= len(self.en_lines):
+            en_words_l = self.en_lines[k-1].strip().split()
+            es_words_l = self.es_lines[k-1].strip().split()
+            # for i = 1..mk where mk is the length of foreign sentence
+            #               at line k of parallel corpus
+            tfe_sum = {}
+            for i in range(1, len(es_words_l) + 1):
+                es_word = es_words_l[i-1]
+                if es_word not in tfe_sum:
+                    tfe_sum[es_word] = float(0.0)
+                    for en_w in en_words_l:
+                        tfe_sum[es_word] += self.tfe[es_word + " " + en_w]
+                    tfe_sum[es_word] += self.tfe[es_word + " NULL"]
+                # for j = 1..lk where lk is the length of english sentence
+                for j in range(len(en_words_l) + 1):
+                    index = str(k) + " " + str(i) + " " + str(j)
+                    en_word = "NULL"
+                    if j != 0:
+                        en_word = en_words_l[j-1]
+                    # delta[k, i, j] = {tfe[fi/ej]} / {sum over all english words
+                    #                                  in the sentence including null
+                    #                                  against the foreign word fi(tfe_sum[fi/e])}
+                    delta[index] = self.tfe[es_word + " " + en_word]/tfe_sum[es_word]
 
 
 if __name__ == "__main__":
