@@ -55,7 +55,8 @@ class IBM_model1(object):
                 self.english_words[en_word] = self.es_uniq
                 len_en_word = self.es_uniq_len
             for es_word in self.english_words[en_word]:
-                self.tfe[es_word + " " + en_word] = 1/float(len_en_word)
+                fe_index = es_word + " " + en_word
+                self.tfe[fe_index] = 1/float(len_en_word)
 
     # http://www.cs.columbia.edu/~mcollins/ibm12.pdf
     def EM_algo(self):
@@ -81,15 +82,26 @@ class IBM_model1(object):
                     en_word = "NULL"
                     if j != 0:
                         en_word = en_words_l[j-1]
-                    # delta[k, i, j] = {tfe[fi/ej]} / {sum over all english words
-                    #                                  in the sentence including null
-                    #                                  against the foreign word fi(tfe_sum[fi/e])}
+                    # delta[k, i, j] = {tfe[fi/ej]} /
+                    # {sum over all english words
+                    # in the sentence including null
+                    # against the foreign word fi(tfe_sum[fi/e])}
                     fe_index = es_word + " " + en_word
                     delta[index] = self.tfe[fe_index]/float(tfe_sum[es_word])
                     if fe_index in counts:
                         counts[fe_index] += delta[index]
+                    else:
+                        counts[fe_index] = delta[index]
                     if en_word in counts:
                         counts[en_word] += delta[index]
+                    else:
+                        counts[en_word] = delta[index]
+            for es in es_words_l:
+                for en in en_words_l:
+                    fe = es + " " + en
+                    self.tfe[fe] = counts[fe] / float(counts[en])
+                self.tfe[es + " NULL"] = counts[es + " NULL"] / float(counts["NULL"])
+            k += 1
 
 
 if __name__ == "__main__":
@@ -99,6 +111,8 @@ if __name__ == "__main__":
     model.initialize_tfe()
     print len(model.en_lines), len(model.es_lines), len(model.es_uniq_words), \
             len(model.english_words['resumption']), len(model.es_uniq), \
-            len(model.tfe), model.tfe["reanudación NULL"]
-    file_utils.write_output(model.english_words['resumption'], "resumption_foreign_py")
+            len(model.tfe), model.tfe["reanudación resumption"], "reanudación resumption"
     print 'Elapsed time: ', time.time() - start, " seconds"
+    start = time.time()
+    model.EM_algo()
+    print 'EM_algo() Elapsed time: ', time.time() - start, " seconds"
