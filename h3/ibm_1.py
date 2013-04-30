@@ -3,7 +3,9 @@
 __author__="Anandan Rangasmay <andy.compeer@gmail.com>"
 __date__ ="$Apr 25, 2013"
 
-# file_utils from pyUtils repo
+"""
+file_utils from pyUtils repo
+"""
 import sys, time, file_utils
 
 class IBM_model1(object):
@@ -19,8 +21,10 @@ class IBM_model1(object):
         self.es_uniq_len = 0
         self.get_lines()
 
-    ## Call this whenever a reset of the file handles is needed
-    ## in order to read the file from beginning.
+    """
+        Call this whenever a reset of the file handles is needed
+        in order to read the file from beginning.
+    """
     def set_en_filehandle(self):
         self.en_corpus_file = file_utils.get_file(self.en_corpus_filename, "r")
 
@@ -57,8 +61,9 @@ class IBM_model1(object):
             for es_word in self.english_words[en_word]:
                 fe_index = es_word + " " + en_word
                 self.tfe[fe_index] = 1/float(len_en_word)
-
-    # http://www.cs.columbia.edu/~mcollins/ibm12.pdf
+    """
+    http://www.cs.columbia.edu/~mcollins/ibm12.pdf
+    """
     def EM_algo(self):
         delta = {}
         k = 1
@@ -66,8 +71,10 @@ class IBM_model1(object):
         while k <= len(self.en_lines):
             en_words_l = self.en_lines[k-1].strip().split()
             es_words_l = self.es_lines[k-1].strip().split()
-            # for i = 1..mk where mk is the length of foreign sentence
-            #               at line k of parallel corpus
+            """
+            for i = 1..mk where mk is the length of foreign sentence
+                          at line k of parallel corpus
+            """
             tfe_sum = {}
             for i in range(1, len(es_words_l) + 1):
                 es_word = es_words_l[i-1]
@@ -76,16 +83,20 @@ class IBM_model1(object):
                     for en_w in en_words_l:
                         tfe_sum[es_word] += self.tfe[es_word + " " + en_w]
                     tfe_sum[es_word] += self.tfe[es_word + " NULL"]
-                # for j = 1..lk where lk is the length of english sentence
+                """
+                for j = 1..lk where lk is the length of english sentence
+                """
                 for j in range(len(en_words_l) + 1):
                     index = str(k) + " " + str(i) + " " + str(j)
                     en_word = "NULL"
                     if j != 0:
                         en_word = en_words_l[j-1]
-                    # delta[k, i, j] = {tfe[fi/ej]} /
-                    # {sum over all english words
-                    # in the sentence including null
-                    # against the foreign word fi(tfe_sum[fi/e])}
+                    """
+                    delta[k, i, j] = {tfe[fi/ej]} /
+                    {sum over all english words
+                    in the sentence including null
+                    against the foreign word fi(tfe_sum[fi/e])}
+                    """
                     fe_index = es_word + " " + en_word
                     delta[index] = self.tfe[fe_index]/float(tfe_sum[es_word])
                     if fe_index in counts:
