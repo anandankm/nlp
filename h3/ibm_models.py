@@ -62,6 +62,7 @@ class IBM_model(object):
         while k <= len(self.en_lines):
             lk = len(self.en_lines[k-1].strip().split())
             mk = len(self.es_lines[k-1].strip().split())
+            k += 1
             if lk not in en_lens:
                 en_lens[lk] = 1/float(lk + 1)
             """
@@ -79,9 +80,6 @@ class IBM_model(object):
                     if q_index not in self.q:
                         self.q[q_index] = en_lens[lk]
         print 'Initialization of q:', "done in ", time.time() - start, ' seconds'
-        start = time.time()
-        file_utils.write_json_gzip(self.q, "initial_q.gzip")
-        print "Initial q written to file - 'initial_q.gzip': done in", time.time() - start, ' seconds'
 
     def initialize_tfe(self):
         start = time.time()
