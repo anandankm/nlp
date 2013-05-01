@@ -206,8 +206,45 @@ class IBM_model(object):
             print 'EM algorithm:', "iteration", iteration, "done in ", time.time() - start, ' seconds'
             iteration += 1
 
+    def use_model2(self):
+        start = time.time()
+        q_model_file = file_utils.get_gzip("ibm_model_2_q.gzip")
+        tfe_model_file = file_utils.get_gzip("ibm_model_2_tfe.gzip")
+        q_model = json.loads(q_model_file.readline())
+        tfe_model = json.loads(tfe_model_file.readline())
+        q_model_file.close()
+        tfe_model_file.close()
+        print 'Read from model file: ', time.time() - start, ' seconds'
+        print 'q Model size:', len(q_model)
+        print 'tfe Model size:', len(tfe_model)
+        k = 1
+        while k <= len(self.es_lines):
+            es_words = self.es_lines[k-1].strip().split()
+            en_words = self.en_lines[k-1].strip().split()
+            lk = len(en_words)
+            mk = len(es_words)
+            for i in range(1, mk + 1):
+                ilm_index = str(i) + " " + str(lk) + " "+ str(mk)
+                max_qtfe = float(0.0)
+                f = es_words[i-1]
+                max_e = "NULL"
+                max_j = 0
+                for j in range(lk + 1):
+                    e = "NULL"
+                    if j != 0:
+                        e = en_words[j-1]
+                    q_index = str(j) + " " + ilm_index
+                    qtfe = float(q_model[q_index]) * tfe_model[unicode(f + " " + e, "utf-8")]
+                    if max_qtfe <= qtfe:
+                        max_qtfe = qtfe
+                        max_e = e
+                        max_j = j
+                if max_j != 0:
+                    yield str(k) + " " + str(max_j) + " " + str(i) + "\n"
+                #print k, max_j, i, f, max_e, max_qtfe
+            k += 1
 
-    def use_model(self):
+    def use_model1(self):
         start = time.time()
         model_file = file_utils.get_gzip("ibm_model_1.gzip")
         ibm_1 = json.loads(model_file.readline())
@@ -257,10 +294,14 @@ class IBM_model(object):
         print 'IBM Model', self.model_no, 'written to a file: ', time.time() - start, ' seconds'
 
 if __name__ == "__main__":
-    model = IBM_model("corpus.en", "corpus.es", 2)
-    model.do_EM_algo()
-    #model = IBM_model("test.en", "test.es", 1)
+    #model = IBM_model("corpus.en", "corpus.es", 2)
+    #model.do_EM_algo()
+    model = IBM_model("dev.en", "dev.es", 2)
+    out_f = file_utils.get_file("alignment_test.p2.out", "w")
+    start = time.time()
+    file_utils.write_itr(model.use_model2(), out_f)
+    print 'Alignments are done: ', time.time() - start, ' seconds'
     #out_f = file_utils.get_file("alignment_test.p1.out", "w")
     #start = time.time()
-    #file_utils.write_itr(model.use_model(), out_f)
+    #file_utils.write_itr(model.use_model1(), out_f)
     #print 'Alignments are done: ', time.time() - start, ' seconds'
