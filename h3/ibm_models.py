@@ -76,6 +76,9 @@ class IBM_model(object):
                 for j = 0..lk {where lk is the length of english sentence}
                 """
                 for j in range(lk + 1):
+                    """
+                     q[j,i,l,m] = 1/(l+1)
+                    """
                     q_index = str(j) + q_i
                     if q_index not in self.q:
                         self.q[q_index] = en_lens[lk]
@@ -131,30 +134,50 @@ class IBM_model(object):
                         for en_w in en_words_l:
                             tfe_sum[es_word] += self.tfe[es_word + " " + en_w]
                         tfe_sum[es_word] += self.tfe[es_word + " NULL"]
-                    if self.model_no == 1:
+                    if self.model_no == 2:
                         for j in range(lk + 1):
-                            q_index = str(i) + " " + str(j) + " " + str(lk) + " "+ str(mk)
+                            q_index = str(j) + " " + str(i) + " " + str(lk) + " "+ str(mk)
                             e = "NULL"
                             if j != 0:
                                 e = en_words_l[j-1]
-                            qtfe_sum += self.q[q_index] * float(self.tfe[es_word + " "+ e])
+                            qtfe_sum += self.q[q_index] * float(self.tfe[unicode(es_word + " " + e, "utf-8")])
 
                     """
                     for j = 0..lk where lk is the length of english sentence
                     """
-                    for j in range(len(en_words_l) + 1):
+                    for j in range(lk + 1):
                         index = str(k) + " " + str(i) + " " + str(j)
                         en_word = "NULL"
                         if j != 0:
                             en_word = en_words_l[j-1]
-                        """
-                        delta[k, i, j] = {tfe[fi/ej]} /
-                        {sum over all english words
-                        in the sentence including null
-                        against the foreign word fi(tfe_sum[fi/e])}
-                        """
                         fe_index = es_word + " " + en_word
-                        delta[index] = self.tfe[fe_index]/float(tfe_sum[es_word])
+                        if self.model_no == 1:
+                            """
+                            delta[k, i, j] = {tfe[fi/ej]} /
+                            {sum over all english words
+                            in the sentence including null
+                            against the foreign word fi(tfe_sum[fi/e])}
+                            """
+                            delta[index] = self.tfe[fe_index]/float(tfe_sum[es_word])
+                        if self.model_no == 2:
+                            fe_index = unicode(fe_index, "utf-8")
+                            ilm_index = str(i) + " " + str(lk) + " "+ str(mk)
+                            q_index = str(j) + " " + ilm_index
+                            """
+                            delta[k, i, j] = {q[j,i,l,m] * tfe[fi/ej]} /
+                                                        {sum over all english words
+                                                         in the sentence including null
+                                                         against the foreign word fi(q[j,i,l,m]*tfe_sum[fi/e])}
+                            """
+                            delta[index] = float(self.q[q_index]) * float(self.tfe[fe_index])/qtfe_sum
+                            if q_index in counts:
+                                counts[q_index] += delta[index]
+                            else:
+                                counts[q_index] = delta[index]
+                            if ilm_index in counts:
+                                counts[ilm_index] += delta[index]
+                            else:
+                                counts[ilm_index] = delta[index]
                         if fe_index in counts:
                             counts[fe_index] += delta[index]
                         else:
@@ -163,11 +186,22 @@ class IBM_model(object):
                             counts[en_word] += delta[index]
                         else:
                             counts[en_word] = delta[index]
+                if self.model_no == 2:
+                    for i in range(1, mk + 1):
+                        for j in range(lk + 1):
+                            ilm_index = str(i) + " " + str(lk) + " "+ str(mk)
+                            q_index = str(j) + " " + ilm_index
+                            self.q[q_index] = counts[q_index] / float(counts[ilm_index])
                 for es in es_words_l:
+                    fe = es + " NULL"
+                    if self.model_no == 2:
+                        fe = unicode(fe, "utf-8")
+                    self.tfe[fe] = counts[fe] / float(counts["NULL"])
                     for en in en_words_l:
                         fe = es + " " + en
+                        if self.model_no == 2:
+                            fe = unicode(fe, "utf-8")
                         self.tfe[fe] = counts[fe] / float(counts[en])
-                    self.tfe[es + " NULL"] = counts[es + " NULL"] / float(counts["NULL"])
                 k += 1
             print 'EM algorithm:', "iteration", iteration, "done in ", time.time() - start, ' seconds'
             iteration += 1
@@ -211,12 +245,15 @@ class IBM_model(object):
                     len(self.english_words['resumption']), len(self.es_uniq), \
                     len(self.tfe), self.tfe["reanudación resumption"], "reanudación resumption"
         print 'Initialization done: ', time.time() - start, ' seconds'
-        return
         start = time.time()
         self.EM_algo()
         print 'EM algorithm done: ', time.time() - start, ' seconds'
         start = time.time()
-        file_utils.write_json_gzip(self.tfe, "ibm_model_1.gzip")
+        if self.model_no == 1:
+            file_utils.write_json_gzip(self.tfe, "ibm_model_1.gzip")
+        if self.model_no == 2:
+            file_utils.write_json_gzip(self.q, "ibm_model_2_q.gzip")
+            file_utils.write_json_gzip(self.tfe, "ibm_model_2_tfe.gzip")
         print 'IBM Model', self.model_no, 'written to a file: ', time.time() - start, ' seconds'
 
 if __name__ == "__main__":
