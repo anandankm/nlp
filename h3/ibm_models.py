@@ -8,13 +8,15 @@ file_utils from pyUtils repo
 """
 import sys, time, file_utils, json
 
-class IBM_model1(object):
-    def __init__(self, en_corpus, es_corpus):
+class IBM_model(object):
+    def __init__(self, en_corpus, es_corpus, model_number):
+        self.model_no = model_number
         self.en_corpus_filename = en_corpus
         self.es_corpus_filename = es_corpus
         self.num_iterations = 5
         self.english_words = {}
         self.tfe = {}
+        self.q = {}
         self.set_en_filehandle()
         self.set_es_filehandle()
         self.es_uniq_words = []
@@ -53,15 +55,38 @@ class IBM_model1(object):
                     self.english_words[en_word] = set(self.es_uniq_words[k-1])
             k += 1
 
+    def initialize_q(self):
+        for i in 
+        k = 1
+        while k <= len(self.en_lines):
+            lk = len(self.en_lines[k-1].strip().split())
+            mk = len(self.es_lines[k-1].strip().split())
+            """
+            for i = 1..mk {where mk is the length of foreign sentence
+                           at line k of parallel corpus}
+            """
+            for i in range(1, mk + 1):
+                """
+                for j = 0..lk where lk is the length of english sentence
+                """
+                for j in range(lk + 1):
+                    q_index = str(i) + " " + str(j) + " " + str(lk) + " "+ str(mk)
+                    self.q[q_index] = 1/float(l+1)
+
     def initialize_tfe(self):
-        for en_word in self.english_words:
-            len_en_word = len(self.english_words[en_word])
-            if len_en_word == 0:
-                self.english_words[en_word] = self.es_uniq
-                len_en_word = self.es_uniq_len
-            for es_word in self.english_words[en_word]:
-                fe_index = es_word + " " + en_word
-                self.tfe[fe_index] = 1/float(len_en_word)
+        if self.model_no == 1:
+            for en_word in self.english_words:
+                len_en_word = len(self.english_words[en_word])
+                if len_en_word == 0:
+                    self.english_words[en_word] = self.es_uniq
+                    len_en_word = self.es_uniq_len
+                    for es_word in self.english_words[en_word]:
+                        fe_index = es_word + " " + en_word
+                        self.tfe[fe_index] = 1/float(len_en_word)
+        if self.model_no == 2:
+            model_file = file_utils.get_gzip("ibm_model_1.gzip")
+            self.tfe = json.loads(model_file.readline())
+            model_file.close()
 
 
     """
@@ -90,7 +115,7 @@ class IBM_model1(object):
                             tfe_sum[es_word] += self.tfe[es_word + " " + en_w]
                         tfe_sum[es_word] += self.tfe[es_word + " NULL"]
                     """
-                    for j = 1..lk where lk is the length of english sentence
+                    for j = 0..lk where lk is the length of english sentence
                     """
                     for j in range(len(en_words_l) + 1):
                         index = str(k) + " " + str(i) + " " + str(j)
@@ -155,6 +180,8 @@ class IBM_model1(object):
         start = time.time()
         self.set_foreign_words()
         self.initialize_tfe()
+        if self.model_no == 2:
+            self.initialize_q()
         print len(self.en_lines), len(self.es_lines), len(self.es_uniq_words), \
                 len(self.english_words['resumption']), len(self.es_uniq), \
                 len(self.tfe), self.tfe["reanudación resumption"], "reanudación resumption"
@@ -164,12 +191,12 @@ class IBM_model1(object):
         print 'EM algorithm done: ', time.time() - start, ' seconds'
         start = time.time()
         file_utils.write_json_gzip(self.tfe, "ibm_model_1.gzip")
-        print 'IBM Model 1 written to a file: ', time.time() - start, ' seconds'
+        print 'IBM Model', self.model_no, 'written to a file: ', time.time() - start, ' seconds'
 
 if __name__ == "__main__":
-    #model = IBM_model1("corpus.en", "corpus.es")
+    #model = IBM_model("corpus.en", "corpus.es", 1)
     #model.do_EM_algo()
-    model = IBM_model1("test.en", "test.es")
+    model = IBM_model("test.en", "test.es", 1)
     out_f = file_utils.get_file("alignment_test.p1.out", "w")
     start = time.time()
     file_utils.write_itr(model.use_model(), out_f)
