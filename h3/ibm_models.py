@@ -56,25 +56,37 @@ class IBM_model(object):
             k += 1
 
     def initialize_q(self):
-        for i in 
+        start = time.time()
         k = 1
+        en_lens = {}
         while k <= len(self.en_lines):
             lk = len(self.en_lines[k-1].strip().split())
             mk = len(self.es_lines[k-1].strip().split())
+            if lk not in en_lens:
+                en_lens[lk] = 1/float(lk + 1)
             """
             for i = 1..mk {where mk is the length of foreign sentence
                            at line k of parallel corpus}
             """
+            q_lm = " " + str(lk) + " " + str(mk)
             for i in range(1, mk + 1):
+                q_i = " " + str(i) + q_lm
                 """
-                for j = 0..lk where lk is the length of english sentence
+                for j = 0..lk {where lk is the length of english sentence}
                 """
                 for j in range(lk + 1):
-                    q_index = str(i) + " " + str(j) + " " + str(lk) + " "+ str(mk)
-                    self.q[q_index] = 1/float(l+1)
+                    q_index = str(j) + q_i
+                    if q_index not in self.q:
+                        self.q[q_index] = en_lens[lk]
+        print 'Initialization of q:', "done in ", time.time() - start, ' seconds'
+        start = time.time()
+        file_utils.write_json_gzip(self.q, "initial_q.gzip")
+        print "Initial q written to file - 'initial_q.gzip': done in", time.time() - start, ' seconds'
 
     def initialize_tfe(self):
+        start = time.time()
         if self.model_no == 1:
+            self.set_foreign_words()
             for en_word in self.english_words:
                 len_en_word = len(self.english_words[en_word])
                 if len_en_word == 0:
@@ -84,9 +96,13 @@ class IBM_model(object):
                         fe_index = es_word + " " + en_word
                         self.tfe[fe_index] = 1/float(len_en_word)
         if self.model_no == 2:
+            """
+             Initialize translation probabilities from IBM Model 1
+            """
             model_file = file_utils.get_gzip("ibm_model_1.gzip")
             self.tfe = json.loads(model_file.readline())
             model_file.close()
+        print 'Initialization of tfe:', "done in ", time.time() - start, ' seconds'
 
 
     """
@@ -102,18 +118,29 @@ class IBM_model(object):
             while k <= len(self.en_lines):
                 en_words_l = self.en_lines[k-1].strip().split()
                 es_words_l = self.es_lines[k-1].strip().split()
+                lk = len(en_words_l)
+                mk = len(es_words_l)
                 """
                 for i = 1..mk where mk is the length of foreign sentence
                               at line k of parallel corpus
                 """
                 tfe_sum = {}
-                for i in range(1, len(es_words_l) + 1):
+                qtfe_sum = float(0.0)
+                for i in range(1, mk + 1):
                     es_word = es_words_l[i-1]
-                    if es_word not in tfe_sum:
+                    if es_word not in tfe_sum and self.model_no == 1:
                         tfe_sum[es_word] = float(0.0)
                         for en_w in en_words_l:
                             tfe_sum[es_word] += self.tfe[es_word + " " + en_w]
                         tfe_sum[es_word] += self.tfe[es_word + " NULL"]
+                    if self.model_no == 1:
+                        for j in range(lk + 1):
+                            q_index = str(i) + " " + str(j) + " " + str(lk) + " "+ str(mk)
+                            e = "NULL"
+                            if j != 0:
+                                e = en_words_l[j-1]
+                            qtfe_sum += self.q[q_index] * float(self.tfe[es_word + " "+ e])
+
                     """
                     for j = 0..lk where lk is the length of english sentence
                     """
@@ -178,14 +205,15 @@ class IBM_model(object):
 
     def do_EM_algo(self):
         start = time.time()
-        self.set_foreign_words()
         self.initialize_tfe()
         if self.model_no == 2:
             self.initialize_q()
-        print len(self.en_lines), len(self.es_lines), len(self.es_uniq_words), \
-                len(self.english_words['resumption']), len(self.es_uniq), \
-                len(self.tfe), self.tfe["reanudación resumption"], "reanudación resumption"
+        if self.model_no == 1:
+            print len(self.en_lines), len(self.es_lines), len(self.es_uniq_words), \
+                    len(self.english_words['resumption']), len(self.es_uniq), \
+                    len(self.tfe), self.tfe["reanudación resumption"], "reanudación resumption"
         print 'Initialization done: ', time.time() - start, ' seconds'
+        return
         start = time.time()
         self.EM_algo()
         print 'EM algorithm done: ', time.time() - start, ' seconds'
@@ -194,10 +222,10 @@ class IBM_model(object):
         print 'IBM Model', self.model_no, 'written to a file: ', time.time() - start, ' seconds'
 
 if __name__ == "__main__":
-    #model = IBM_model("corpus.en", "corpus.es", 1)
-    #model.do_EM_algo()
-    model = IBM_model("test.en", "test.es", 1)
-    out_f = file_utils.get_file("alignment_test.p1.out", "w")
-    start = time.time()
-    file_utils.write_itr(model.use_model(), out_f)
-    print 'Alignments are done: ', time.time() - start, ' seconds'
+    model = IBM_model("corpus.en", "corpus.es", 2)
+    model.do_EM_algo()
+    #model = IBM_model("test.en", "test.es", 1)
+    #out_f = file_utils.get_file("alignment_test.p1.out", "w")
+    #start = time.time()
+    #file_utils.write_itr(model.use_model(), out_f)
+    #print 'Alignments are done: ', time.time() - start, ' seconds'
