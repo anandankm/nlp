@@ -122,6 +122,7 @@ class IBM_model1(object):
             print 'EM algorithm:', "iteration", iteration, "done in ", time.time() - start, ' seconds'
             iteration += 1
 
+
     def use_model(self):
         start = time.time()
         model_file = file_utils.get_gzip("ibm_model_1.gzip")
@@ -129,6 +130,26 @@ class IBM_model1(object):
         model_file.close()
         print 'Read from model file: ', time.time() - start, ' seconds'
         print 'Model size:', len(ibm_1)
+        k = 1
+        while k <= len(self.es_lines):
+            es_words = self.es_lines[k-1].strip().split()
+            en_words = self.en_lines[k-1].strip().split()
+            f_ind = 1
+            for f in es_words:
+                max_tfe = 0
+                max_e = "NULL"
+                e_ind = 0
+                max_e_ind = 0
+                for e in en_words:
+                    e_ind += 1
+                    if max_tfe < ibm_1[unicode(f + " " + e, "utf-8")]:
+                        max_tfe = ibm_1[unicode(f + " " + e, "utf-8")]
+                        max_e = e
+                        max_e_ind = e_ind
+                #print k, max_e_ind, f_ind, f, max_e, max_tfe
+                yield str(k) + " " + str(max_e_ind) + " " + str(f_ind) + "\n"
+                f_ind += 1
+            k += 1
 
     def do_EM_algo(self):
         start = time.time()
@@ -148,5 +169,8 @@ class IBM_model1(object):
 if __name__ == "__main__":
     #model = IBM_model1("corpus.en", "corpus.es")
     #model.do_EM_algo()
-    model = IBM_model1("dev.en", "dev.es")
-    model.use_model()
+    model = IBM_model1("test.en", "test.es")
+    out_f = file_utils.get_file("alignment_test.p1.out", "w")
+    start = time.time()
+    file_utils.write_itr(model.use_model(), out_f)
+    print 'Alignments are done: ', time.time() - start, ' seconds'
