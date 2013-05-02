@@ -22,6 +22,8 @@ class IBM_model(object):
         self.es_uniq_words = []
         self.es_uniq = set()
         self.es_uniq_len = 0
+        self.en_lines_list = []
+        self.es_lines_list = []
         self.get_lines()
 
     """
@@ -60,8 +62,12 @@ class IBM_model(object):
         k = 1
         en_lens = {}
         while k <= len(self.en_lines):
-            lk = len(self.en_lines[k-1].strip().split())
-            mk = len(self.es_lines[k-1].strip().split())
+            en_line = self.en_lines[k-1].strip().split()
+            es_line = self.es_lines[k-1].strip().split()
+            self.en_lines_list.append(en_line)
+            self.es_lines_list.append(es_line)
+            lk = len(en_line)
+            mk = len(es_line)
             k += 1
             if lk not in en_lens:
                 en_lens[lk] = 1/float(lk + 1)
@@ -82,11 +88,12 @@ class IBM_model(object):
                     q_index = str(j) + q_i
                     if q_index not in self.q:
                         self.q[q_index] = en_lens[lk]
-        print 'Initialization of q:', "done in ", time.time() - start, ' seconds'
+        print "Initialization of q: done in ", time.time() - start, "seconds"
 
     def initialize_tfe(self):
         start = time.time()
         if self.model_no == 1:
+            print "Model 1 initialization of tfe..."
             self.set_foreign_words()
             for en_word in self.english_words:
                 len_en_word = len(self.english_words[en_word])
@@ -100,11 +107,94 @@ class IBM_model(object):
             """
              Initialize translation probabilities from IBM Model 1
             """
+            print "Model 2 initialization of tfe (from IBM model 1 file)..."
             model_file = file_utils.get_gzip("ibm_model_1.gzip")
             self.tfe = json.loads(model_file.readline())
             model_file.close()
         print 'Initialization of tfe:', "done in ", time.time() - start, ' seconds'
 
+    def EM_algo2(self):
+        iteration = 1
+        while iteration <= self.num_iterations:
+            start = time.time()
+            k = 1
+            counts = {}
+            corpus_len = len(self.en_lines)
+            while k <= corpus_len:
+                en_words_l = self.en_lines_list[k-1]
+                es_words_l = self.es_lines_list[k-1]
+                lk = len(en_words_l)
+                mk = len(es_words_l)
+                """
+                for i = 1..mk where mk is the length of foreign sentence
+                              at line k of parallel corpus
+                """
+                for i in range(1, mk + 1):
+                    qtfe_sum = float(0.0)
+                    es_word = es_words_l[i-1]
+                    for j in range(lk + 1):
+                        q_index = str(j) + " " + str(i) + " " + str(lk) + " " + str(mk)
+                        e = "NULL"
+                        if j != 0:
+                            e = en_words_l[j-1]
+                        qtfe_sum += float(self.q[q_index]) * float(self.tfe[unicode(es_word + " " + e, "utf-8")])
+
+                    """
+                    for j = 0..lk where lk is the length of english sentence
+                    """
+                    for j in range(lk + 1):
+                        en_word = "NULL"
+                        if j != 0:
+                            en_word = en_words_l[j-1]
+                        fe_index = unicode(es_word + " " + en_word, "utf-8")
+                        ilm_index = str(i) + " " + str(lk) + " "+ str(mk)
+                        q_index = str(j) + " " + ilm_index
+                        """
+                        delta[k, i, j] = {q[j,i,l,m] * tfe[fi/ej]} /
+                                                    {sum over all english words
+                                                     in the sentence including null
+                                                     against the foreign word fi(q[j,i,l,m]*tfe_sum[fi/e])}
+                        """
+                        current_delta = float(self.q[q_index]) * float(self.tfe[fe_index])/float(qtfe_sum)
+                        if q_index in counts:
+                            counts[q_index] += current_delta
+                        else:
+                            counts[q_index] = current_delta
+                        if ilm_index in counts:
+                            counts[ilm_index] += current_delta
+                        else:
+                            counts[ilm_index] = current_delta
+                        if fe_index in counts:
+                            counts[fe_index] += current_delta
+                        else:
+                            counts[fe_index] = current_delta
+                        if en_word in counts:
+                            counts[en_word] += current_delta
+                        else:
+                            counts[en_word] = current_delta
+                        #self.q[q_index] = float(counts[q_index])/float(counts[ilm_index])
+                        #self.tfe[fe_index] = float(counts[fe_index])/float(counts[en_word])
+                k += 1
+            k = 1
+            while k <= corpus_len:
+                en_words_l = self.en_lines_list[k-1]
+                es_words_l = self.es_lines_list[k-1]
+                lk = len(en_words_l)
+                mk = len(es_words_l)
+                for i in range(1, mk + 1):
+                    es = es_words_l[i-1]
+                    for j in range(lk + 1):
+                        ilm_index = str(i) + " " + str(lk) + " "+ str(mk)
+                        q_index = str(j) + " " + ilm_index
+                        en = "NULL"
+                        if j != 0:
+                            en = en_words_l[j-1]
+                        fe = unicode(es + " " + en, "utf-8")
+                        self.q[q_index] = float(counts[q_index])/float(counts[ilm_index])
+                        self.tfe[fe] = float(counts[fe])/float(counts[en])
+                k += 1
+            print 'EM algorithm:', "iteration", iteration, "done in ", time.time() - start, ' seconds'
+            iteration += 1
 
     """
     http://www.cs.columbia.edu/~mcollins/ibm12.pdf
@@ -234,8 +324,8 @@ class IBM_model(object):
                     if j != 0:
                         e = en_words[j-1]
                     q_index = str(j) + " " + ilm_index
-                    qtfe = float(q_model[q_index]) * tfe_model[unicode(f + " " + e, "utf-8")]
-                    if max_qtfe <= qtfe:
+                    qtfe = float(q_model[q_index]) * float(tfe_model[unicode(f + " " + e, "utf-8")])
+                    if max_qtfe < qtfe:
                         max_qtfe = qtfe
                         max_e = e
                         max_j = j
@@ -283,7 +373,10 @@ class IBM_model(object):
                     len(self.tfe), self.tfe["reanudación resumption"], "reanudación resumption"
         print 'Initialization done: ', time.time() - start, ' seconds'
         start = time.time()
-        self.EM_algo()
+        if self.model_no == 1:
+            self.EM_algo()
+        if self.model_no == 2:
+            self.EM_algo2()
         print 'EM algorithm done: ', time.time() - start, ' seconds'
         start = time.time()
         if self.model_no == 1:
@@ -296,7 +389,7 @@ class IBM_model(object):
 if __name__ == "__main__":
     #model = IBM_model("corpus.en", "corpus.es", 2)
     #model.do_EM_algo()
-    model = IBM_model("dev.en", "dev.es", 2)
+    model = IBM_model("test.en", "test.es", 2)
     out_f = file_utils.get_file("alignment_test.p2.out", "w")
     start = time.time()
     file_utils.write_itr(model.use_model2(), out_f)
